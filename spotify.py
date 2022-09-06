@@ -47,10 +47,9 @@ class UpdatePlaylist:
                 print(credentials)
 
         youtube = build('youtube', 'v3', credentials=credentials)
-        print(credentials)
 
-        num_ids = 1
         next_page_token = -1
+        index = 0
 
         while next_page_token is not None:
             # first token but can't be None
@@ -66,28 +65,21 @@ class UpdatePlaylist:
             response = request.execute()
             next_page_token = response.get('nextPageToken')
             total_vids = response['pageInfo']['totalResults']
-            # need to separate vid_ids in groups of 50
-            arr_space = math.ceil(total_vids / 50)
-            vid_ids = [''] * arr_space
-            index = 0
 
-            print(total_vids, arr_space, vid_ids, '\n')
+            # init array to hold ids of size 50
+            if index == 0:
+                # need to separate vid_ids in groups of 50
+                arr_space = math.ceil(total_vids / 50)
+                vid_ids = [''] * arr_space
 
             for item in response['items']:
                 vid_id = item['contentDetails']['videoId']
-                if num_ids == 50:
-                    num_ids = 0
-                    index += 1
-                if num_ids == 51:
-                    print('at 51 ', vid_ids, '\n')
                 vid_ids[index] = vid_ids[index] + vid_id + ','
-                num_ids += 1
+            index += 1
 
-        print('vid_ids', vid_ids, '\n')
         vid_titles = []
 
         for vid_id in vid_ids:
-            print('vidid', vid_id, '\n')
             request = youtube.videos().list(
                 part="snippet,contentDetails,statistics",
                 id=vid_id[:-1] # take out last comma
@@ -98,8 +90,6 @@ class UpdatePlaylist:
                 title = vid_info['snippet']['title']
                 vid_titles.append(title)
         
-        print('titles', vid_titles)
-
         # Save the credentials for the next run
         with open('token.pickle', 'wb') as f:
             print('Saving Credentials for Future Use...')

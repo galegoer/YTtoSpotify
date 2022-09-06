@@ -5,6 +5,7 @@ import os
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from google.auth.transport.requests import Request
+import math
 
 from spotipy.oauth2 import SpotifyClientCredentials
 
@@ -22,7 +23,6 @@ class UpdatePlaylist:
     def get_playlist(self, playlist_id):
         
         credentials = None
-        nextPageToken = None
         
         if os.path.exists('token.pickle'):
             print('Loading Credentials From File...')
@@ -49,16 +49,56 @@ class UpdatePlaylist:
         youtube = build('youtube', 'v3', credentials=credentials)
         print(credentials)
 
-        request = youtube.playlistItems().list(
-            part='contentDetails',
-            playlistId=playlist_id,
-            maxResults=50,
-            pageToken=nextPageToken
-        )
+        num_ids = 1
+        next_page_token = -1
 
-        response = request.execute()
+        while next_page_token is not None:
+            # first token but can't be None
+            if next_page_token == -1:
+                next_page_token = None
+            request = youtube.playlistItems().list(
+                part='contentDetails',
+                playlistId=playlist_id,
+                maxResults=50,
+                pageToken=next_page_token
+            )
 
-        print(response)
+            response = request.execute()
+            next_page_token = response.get('nextPageToken')
+            total_vids = response['pageInfo']['totalResults']
+            # need to separate vid_ids in groups of 50
+            arr_space = math.ceil(total_vids / 50)
+            vid_ids = [''] * arr_space
+            index = 0
+
+            print(total_vids, arr_space, vid_ids, '\n')
+
+            for item in response['items']:
+                vid_id = item['contentDetails']['videoId']
+                if num_ids == 50:
+                    num_ids = 0
+                    index += 1
+                if num_ids == 51:
+                    print('at 51 ', vid_ids, '\n')
+                vid_ids[index] = vid_ids[index] + vid_id + ','
+                num_ids += 1
+
+        print('vid_ids', vid_ids, '\n')
+        vid_titles = []
+
+        for vid_id in vid_ids:
+            print('vidid', vid_id, '\n')
+            request = youtube.videos().list(
+                part="snippet,contentDetails,statistics",
+                id=vid_id[:-1] # take out last comma
+            )
+        
+            response = request.execute()
+            for vid_info in response['items']:
+                title = vid_info['snippet']['title']
+                vid_titles.append(title)
+        
+        print('titles', vid_titles)
 
         # Save the credentials for the next run
         with open('token.pickle', 'wb') as f:

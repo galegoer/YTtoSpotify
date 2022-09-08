@@ -1,16 +1,11 @@
 import pickle
-import re
-from httplib2 import Credentials
 import spotipy
 import os
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from google.auth.transport.requests import Request
 import math
-import json
-import requests
 from dotenv import load_dotenv
-
 from spotipy.oauth2 import SpotifyOAuth
 
 
@@ -19,31 +14,31 @@ class UpdatePlaylist:
     def __init__(self, playlist_id):
         self.youtube_playlist_id = playlist_id
         self.youtube_client, self.playlist_title = self.get_youtube_client()
-        self.spotify_playlist_id = self.create_spotify_playlist()
         # can maybe put this somewhere else
         self.spotify_client = spotipy.Spotify(auth_manager=SpotifyOAuth(scope="user-library-read, playlist-modify-public"))
+        
+        self.spotify_playlist_id = self.create_spotify_playlist()
         self.titles = []
 
     def update_spotify_playlist(self):
+        uris = []
+        print("Searching for Spotify Titles")
         for song_title in self.titles:
-            self.search_song(song_title)
-
-    # def get_playlist_title(self, youtube_client):
-    #     request = youtube_client.playlists().list(
-    #         part="snippet,contentDetails",
-    #         id=self.playlist_id
-    #     )
-    #     response = request.execute()
-        
-    #     return response['items']['snippet']['title']
+            uri = self.search_song(song_title)
+            uris.append(uri)
+        print("Found all Spotify Titles")
+        print(f"Adding Spotify Titles to Playlist: {self.playlist_title}")
+        self.spotify_client.playlist_add_items(self.spotify_playlist_id, uris)
+        print(f"Updated Spotify Playlist: {self.playlist_title}")
+        return
 
     def create_spotify_playlist(self):
 
         print(self.spotify_client.current_user())
         user_id = self.spotify_client.current_user()['id']
-        # can adjust later to update an existing Spotify playlist based on changes to YT playlist
-        playlist_info = self.spotify_client.user_playlist_create(user_id, 'temp', public=True, description='')
-        print(playlist_info['id'])
+        # TODO: adjust to update an existing Spotify playlist based on changes to YT playlist
+        playlist_info = self.spotify_client.user_playlist_create(user_id, self.playlist_title, public=True, description='')
+        print(f"Created Spotify Playlist: {self.playlist_title}")
         return playlist_info['id']
 
 
@@ -81,9 +76,8 @@ class UpdatePlaylist:
             id=self.youtube_playlist_id
         )
         response = request.execute()
-        print(response)
         
-        playlist_title = response['items']['snippet']['title']
+        playlist_title = response['items'][0]['snippet']['title']
 
         # Save the credentials for the next run
         with open('token.pickle', 'wb') as f:
@@ -93,6 +87,7 @@ class UpdatePlaylist:
         return youtube, playlist_title
 
     def get_youtube_titles(self, youtube_client):
+        print("Searching for YouTube Video Titles")
 
         next_page_token = -1
         index = 0
@@ -135,27 +130,24 @@ class UpdatePlaylist:
             for vid_info in response['items']:
                 title = vid_info['snippet']['title']
                 vid_titles.append(title)
-        
+
+        self.titles = vid_titles
+        print("Found YouTube Video Titles")
+
         return vid_titles
 
     def search_song(self, title):
-        result = self.spotify_client.search(title, 3, 0, 'track')
-        print(result)
-        return result
+        result = self.spotify_client.search(title, 1, 0)
+        uri = result['tracks']['items'][0]['uri']
+        return uri
 
 
 if __name__ == '__main__':
-    # May change to reverse as well (Spotify to YT)
+    # TODO: change to reverse as well (Spotify to YT)
     load_dotenv()
     playlist_id = input("Enter your YouTube playlist ID: ")
 
-    # search needs to be tested
-    # test_title = ['Everybody Wants to Rule the World']
-    # update = UpdatePlaylist(playlist_id)
-    # update.titles = test_title
+    update = UpdatePlaylist(playlist_id)
 
-    # print(update)
-    # print(update.titles)
-    # titles = update.get_youtube_titles(update.youtube_client)
-    # print(titles)
-
+    update.get_youtube_titles(update.youtube_client)
+    update.update_spotify_playlist()

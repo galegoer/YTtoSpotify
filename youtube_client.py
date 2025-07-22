@@ -43,7 +43,7 @@ class YoutubeClient:
 
         return youtube
     
-    def getYoutubeSongId(self, song, band):
+    def getSongId(self, song, band):
         # retrieve title of playlist from YT
         request = self.youtube_client.search().list(
             part="snippet",
